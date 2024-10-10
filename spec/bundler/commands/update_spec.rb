@@ -1202,10 +1202,10 @@ RSpec.describe "bundle update when a gem depends on a newer version of bundler" 
   before do
     build_repo2 do
       build_gem "rails", "3.0.1" do |s|
-        s.add_dependency "bundler", Bundler::VERSION.succ
+        s.add_dependency "bundler", "9.9.9"
       end
 
-      build_gem "bundler", Bundler::VERSION.succ
+      build_gem "bundler", "9.9.9"
     end
 
     gemfile <<-G
@@ -1218,7 +1218,7 @@ RSpec.describe "bundle update when a gem depends on a newer version of bundler" 
     bundle "update", all: true, raise_on_error: false
     expect(last_command.stdboth).not_to match(/in snapshot/i)
     expect(err).to match(/current Bundler version/i).
-      and match(/Install the necessary version with `gem install bundler:#{Bundler::VERSION.succ}`/i)
+      and match(/Install the necessary version with `gem install bundler:9\.9\.9`/i)
   end
 end
 
@@ -1469,38 +1469,28 @@ RSpec.describe "bundle update --bundler" do
 
     bundle :update, bundler: true, verbose: true, preserve_ruby_flags: true
 
-    # Only updates properly on modern RubyGems.
+    expect(out).to include("Updating bundler to 999.0.0")
+    expect(out).to include("Running `bundle update --bundler \"> 0.a\" --verbose` with bundler 999.0.0")
+    expect(out).not_to include("Installing Bundler 2.99.9 and restarting using that version.")
 
-    if Gem.rubygems_version >= Gem::Version.new("3.3.0.dev")
-      expect(out).to include("Updating bundler to 999.0.0")
-      expect(out).to include("Running `bundle update --bundler \"> 0.a\" --verbose` with bundler 999.0.0")
-      expect(out).not_to include("Installing Bundler 2.99.9 and restarting using that version.")
+    expect(lockfile).to eq <<~L
+      GEM
+        remote: https://gem.repo4/
+        specs:
+          myrack (1.0)
 
-      expect(lockfile).to eq <<~L
-        GEM
-          remote: https://gem.repo4/
-          specs:
-            myrack (1.0)
+      PLATFORMS
+        #{lockfile_platforms}
 
-        PLATFORMS
-          #{lockfile_platforms}
+      DEPENDENCIES
+        myrack
 
-        DEPENDENCIES
-          myrack
+      BUNDLED WITH
+         999.0.0
+    L
 
-        BUNDLED WITH
-           999.0.0
-      L
-
-      expect(the_bundle).to include_gems "bundler 999.0.0"
-      expect(the_bundle).to include_gems "myrack 1.0"
-    else
-      # Old RubyGems versions do not trampoline but they still change BUNDLED
-      # WITH to the latest bundler version. This means the below check fails
-      # because it tries to use bundler 999.0.0 which did not get installed.
-      # Workaround the bug by forcing the version we know is installed.
-      expect(the_bundle).to include_gems "myrack 1.0", env: { "BUNDLER_VERSION" => "2.99.9" }
-    end
+    expect(the_bundle).to include_gems "bundler 999.0.0"
+    expect(the_bundle).to include_gems "myrack 1.0"
   end
 
   it "does not claim to update to Bundler version to a wrong version when cached gems are present" do
@@ -1535,32 +1525,35 @@ RSpec.describe "bundle update --bundler" do
 
     bundle :cache, verbose: true
 
-    bundle :update, bundler: true, artifice: "compact_index", verbose: true, env: { "BUNDLER_SPEC_GEM_REPO" => gem_repo4.to_s }
+    bundle :update, bundler: true, verbose: true
 
     expect(out).not_to include("Updating bundler to")
   end
 
   it "does not update the bundler version in the lockfile if the latest version is not compatible with current ruby", :ruby_repo do
-    pristine_system_gems "bundler-2.3.9"
+    pristine_system_gems "bundler-9.9.9"
 
     build_repo4 do
       build_gem "myrack", "1.0"
 
-      build_bundler "2.3.9"
+      build_bundler "9.9.9"
       build_bundler "999.0.0" do |s|
         s.required_ruby_version = "> #{Gem.ruby_version}"
       end
     end
 
-    install_gemfile <<-G, env: { "BUNDLER_IGNORE_DEFAULT_GEM" => "true" }
+    checksums = checksums_section do |c|
+      c.checksum(gem_repo4, "myrack", "1.0")
+    end
+
+    install_gemfile <<-G
       source "https://gem.repo4"
       gem "myrack"
     G
-    lockfile lockfile.sub(/(^\s*)#{Bundler::VERSION}($)/, "2.3.9")
 
-    bundle :update, bundler: true, artifice: "compact_index", verbose: true, env: { "BUNDLER_SPEC_GEM_REPO" => gem_repo4.to_s, "BUNDLER_IGNORE_DEFAULT_GEM" => "true" }
+    bundle :update, bundler: true, verbose: true
 
-    expect(out).to include("Using bundler 2.3.9")
+    expect(out).to include("Using bundler 9.9.9")
 
     expect(lockfile).to eq <<~L
       GEM
@@ -1573,36 +1566,31 @@ RSpec.describe "bundle update --bundler" do
 
       DEPENDENCIES
         myrack
-
+      #{checksums}
       BUNDLED WITH
-         2.3.9
+         9.9.9
     L
 
-    expect(the_bundle).to include_gems "bundler 2.3.9"
+    expect(the_bundle).to include_gems "bundler 9.9.9"
     expect(the_bundle).to include_gems "myrack 1.0"
   end
 
   it "errors if the explicit target version does not exist" do
-    pristine_system_gems "bundler-2.3.9"
+    pristine_system_gems "bundler-9.9.9"
 
     build_repo4 do
       build_gem "myrack", "1.0"
     end
 
-    install_gemfile <<-G, env: { "BUNDLER_IGNORE_DEFAULT_GEM" => "true" }
+    install_gemfile <<-G
       source "https://gem.repo4"
       gem "myrack"
     G
-    lockfile lockfile.sub(/(^\s*)#{Bundler::VERSION}($)/, "2.3.9")
 
-    bundle :update, bundler: "999.999.999", artifice: "compact_index", raise_on_error: false
+    bundle :update, bundler: "999.999.999", raise_on_error: false
 
-    # Only gives a meaningful error message on modern RubyGems.
-
-    if Gem.rubygems_version >= Gem::Version.new("3.3.0.dev")
-      expect(last_command).to be_failure
-      expect(err).to include("The `bundle update --bundler` target version (999.999.999) does not exist")
-    end
+    expect(last_command).to be_failure
+    expect(err).to eq("The `bundle update --bundler` target version (999.999.999) does not exist")
   end
 
   it "allows updating to development versions if already installed locally" do
@@ -1619,13 +1607,11 @@ RSpec.describe "bundle update --bundler" do
 
     bundle :update, bundler: "2.3.0.dev", verbose: "true"
 
-    # Only updates properly on modern RubyGems.
-    if Gem.rubygems_version >= Gem::Version.new("3.3.0.dev")
-      checksums = checksums_section_when_enabled do |c|
-        c.checksum(gem_repo4, "myrack", "1.0")
-      end
+    checksums = checksums_section_when_enabled do |c|
+      c.checksum(gem_repo4, "myrack", "1.0")
+    end
 
-      expect(lockfile).to eq <<~L
+    expect(lockfile).to eq <<~L
         GEM
           remote: https://gem.repo4/
           specs:
@@ -1641,8 +1627,7 @@ RSpec.describe "bundle update --bundler" do
            2.3.0.dev
       L
 
-      expect(out).to include("Using bundler 2.3.0.dev")
-    end
+    expect(out).to include("Using bundler 2.3.0.dev")
   end
 
   it "does not touch the network if not necessary" do
@@ -1666,8 +1651,7 @@ RSpec.describe "bundle update --bundler" do
       c.checksum(gem_repo4, "myrack", "1.0")
     end
 
-    if Gem.rubygems_version >= Gem::Version.new("3.3.0.dev")
-      expect(lockfile).to eq <<~L
+    expect(lockfile).to eq <<~L
         GEM
           remote: https://gem.repo4/
           specs:
@@ -1683,8 +1667,7 @@ RSpec.describe "bundle update --bundler" do
            2.3.9
       L
 
-      expect(out).to include("Using bundler 2.3.9")
-    end
+    expect(out).to include("Using bundler 2.3.9")
   end
 
   it "prints an error when trying to update bundler in frozen mode" do

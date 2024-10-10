@@ -18,6 +18,7 @@ module SyncDefaultGems
     "net-http": "ruby/net-http",
     "net-protocol": "ruby/net-protocol",
     "open-uri": "ruby/open-uri",
+    "win32-registry": "ruby/win32-registry",
     English: "ruby/English",
     benchmark: "ruby/benchmark",
     cgi: "ruby/cgi",
@@ -35,7 +36,7 @@ module SyncDefaultGems
     forwardable: "ruby/forwardable",
     ipaddr: 'ruby/ipaddr',
     irb: 'ruby/irb',
-    json: 'flori/json',
+    json: 'ruby/json',
     logger: 'ruby/logger',
     open3: "ruby/open3",
     openssl: "ruby/openssl",
@@ -383,6 +384,9 @@ module SyncDefaultGems
       rm_rf("prism/templates/rbi")
       rm_rf("prism/templates/sig")
 
+      rm("test/prism/snapshots_test.rb")
+      rm_rf("test/prism/snapshots")
+
       rm("prism/extconf.rb")
     when "resolv"
       rm_rf(%w[lib/resolv.* ext/win32/resolv test/resolv ext/win32/lib/win32/resolv.rb])
@@ -393,6 +397,11 @@ module SyncDefaultGems
       rm_rf("ext/win32/resolv/lib") # Clean up empty directory
       cp_r("#{upstream}/test/resolv", "test")
       `git checkout ext/win32/resolv/depend`
+    when "win32-registry"
+      rm_rf(%w[ext/win32/lib/win32/registry.rb test/win32/test_registry.rb])
+      cp_r("#{upstream}/lib/win32/registry.rb", "ext/win32/lib/win32")
+      cp_r("#{upstream}/test/win32/test_registry.rb", "test/win32")
+      cp_r("#{upstream}/win32-registry.gemspec", "ext/win32")
     else
       sync_lib gem, upstream
     end
@@ -423,6 +432,7 @@ module SyncDefaultGems
       "ext/#{gem}/#{gem}.gemspec",
       "ext/#{gem.split("-").join("/")}/#{gem}.gemspec",
       "lib/#{gem.split("-").first}/#{gem}.gemspec",
+      "ext/#{gem.split("-").first}/#{gem}.gemspec",
       "lib/#{gem.split("-").join("/")}/#{gem}.gemspec",
     ].find{|gemspec| File.exist?(gemspec)}
     spec = Gem::Specification.load(gemspec)

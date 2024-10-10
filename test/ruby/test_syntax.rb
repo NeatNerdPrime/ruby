@@ -330,7 +330,12 @@ class TestSyntax < Test::Unit::TestCase
     bug10315 = '[ruby-core:65368] [Bug #10315]'
 
     o = KW2.new
-    assert_equal([23, 2], o.kw(**{k1: 22}, **{k1: 23}), bug10315)
+    begin
+      verbose_bak, $VERBOSE = $VERBOSE, nil
+      assert_equal([23, 2], eval("o.kw(**{k1: 22}, **{k1: 23})"), bug10315)
+    ensure
+      $VERBOSE = verbose_bak
+    end
 
     h = {k3: 31}
     assert_raise(ArgumentError) {o.kw(**h)}
@@ -1387,7 +1392,7 @@ eom
 
   def test_block_after_cmdarg_in_paren
     bug11873 = '[ruby-core:72482] [Bug #11873]'
-    def bug11873.p(*);end;
+    def bug11873.p(*, &);end;
 
     assert_raise(LocalJumpError, bug11873) do
       bug11873.instance_eval do
@@ -1963,16 +1968,23 @@ eom
     assert_valid_syntax("def foo b = 1, ...; bar(...); end")
     assert_valid_syntax("(def foo ...\n  bar(...)\nend)")
     assert_valid_syntax("(def foo ...; bar(...); end)")
+    assert_valid_syntax("def (1...).foo ...; bar(...); end")
+    assert_valid_syntax("def (tap{1...}).foo ...; bar(...); end")
     assert_valid_syntax('def ==(...) end')
     assert_valid_syntax('def [](...) end')
     assert_valid_syntax('def nil(...) end')
     assert_valid_syntax('def true(...) end')
     assert_valid_syntax('def false(...) end')
+    assert_valid_syntax('->a=1...{}')
     unexpected = /unexpected \.{3}/
     assert_syntax_error('iter do |...| end', /unexpected/)
     assert_syntax_error('iter {|...|}', /unexpected/)
     assert_syntax_error('->... {}', unexpected)
     assert_syntax_error('->(...) {}', unexpected)
+    assert_syntax_error('->a,... {}', unexpected)
+    assert_syntax_error('->(a,...) {}', unexpected)
+    assert_syntax_error('->a=1,... {}', unexpected)
+    assert_syntax_error('->(a=1,...) {}', unexpected)
     assert_syntax_error('def foo(x, y, z) bar(...); end', /unexpected/)
     assert_syntax_error('def foo(x, y, z) super(...); end', /unexpected/)
     assert_syntax_error('def foo(...) yield(...); end', /unexpected/)
@@ -2222,6 +2234,43 @@ eom
     RUBY
   end
 
+  def test_defined_in_short_circuit_if_condition
+    bug = '[ruby-core:20501]'
+    conds = [
+      "false && defined?(Some::CONSTANT)",
+      "true || defined?(Some::CONSTANT)",
+      "(false && defined?(Some::CONSTANT))", # parens exercise different code path
+      "(true || defined?(Some::CONSTANT))",
+      "@val && false && defined?(Some::CONSTANT)",
+      "@val || true || defined?(Some::CONSTANT)"
+    ]
+
+    conds.each do |cond|
+      code = %Q{
+        def my_method
+          var = "there"
+          if #{cond}
+            var = "here"
+          end
+          raise var
+        end
+        begin
+          my_method
+        rescue
+          print 'ok'
+        else
+          print 'ng'
+        end
+      }
+      # Invoke in a subprocess because the bug caused a segfault using the parse.y compiler.
+      # Don't use assert_separately because the bug was best reproducible in a clean slate,
+      # without test env loaded.
+      out, _err, status = EnvUtil.invoke_ruby(["--disable-gems"], code, true, false)
+      assert_predicate(status, :success?, bug)
+      assert_equal 'ok', out
+    end
+  end
+
   private
 
   def not_label(x) @result = x; @not_label ||= nil end
@@ -2256,7 +2305,7 @@ eom
     end
   end
 
-  def caller_lineno(*)
+  def caller_lineno(*, &)
     caller_locations(1, 1)[0].lineno
   end
 end

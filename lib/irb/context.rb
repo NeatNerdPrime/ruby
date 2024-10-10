@@ -149,25 +149,13 @@ module IRB
         @newline_before_multiline_output = true
       end
 
-      @user_aliases = IRB.conf[:COMMAND_ALIASES].dup
-      @command_aliases = @user_aliases.merge(KEYWORD_ALIASES)
+      @command_aliases = IRB.conf[:COMMAND_ALIASES].dup
     end
 
     private def term_interactive?
       return true if ENV['TEST_IRB_FORCE_INTERACTIVE']
       STDIN.tty? && ENV['TERM'] != 'dumb'
     end
-
-    # because all input will eventually be evaluated as Ruby code,
-    # command names that conflict with Ruby keywords need special workaround
-    # we can remove them once we implemented a better command system for IRB
-    KEYWORD_ALIASES = {
-      :break => :irb_break,
-      :catch => :irb_catch,
-      :next => :irb_next,
-    }.freeze
-
-    private_constant :KEYWORD_ALIASES
 
     def use_tracer=(val)
       require_relative "ext/tracer" if val
@@ -188,11 +176,17 @@ module IRB
 
     private def build_completor
       completor_type = IRB.conf[:COMPLETOR]
+
+      # Gem repl_type_completor is added to bundled gems in Ruby 3.4.
+      # Use :type as default completor only in Ruby 3.4 or later.
+      verbose = !!completor_type
+      completor_type ||= RUBY_VERSION >= '3.4' ? :type : :regexp
+
       case completor_type
       when :regexp
         return RegexpCompletor.new
       when :type
-        completor = build_type_completor
+        completor = build_type_completor(verbose: verbose)
         return completor if completor
       else
         warn "Invalid value for IRB.conf[:COMPLETOR]: #{completor_type}"
@@ -201,17 +195,17 @@ module IRB
       RegexpCompletor.new
     end
 
-    private def build_type_completor
+    private def build_type_completor(verbose:)
       if RUBY_ENGINE == 'truffleruby'
         # Avoid SyntaxError. truffleruby does not support endless method definition yet.
-        warn 'TypeCompletor is not supported on TruffleRuby yet'
+        warn 'TypeCompletor is not supported on TruffleRuby yet' if verbose
         return
       end
 
       begin
         require 'repl_type_completor'
       rescue LoadError => e
-        warn "TypeCompletor requires `gem repl_type_completor`: #{e.message}"
+        warn "TypeCompletor requires `gem repl_type_completor`: #{e.message}" if verbose
         return
       end
 
@@ -658,6 +652,21 @@ module IRB
       private_method = !public_method && !!Kernel.instance_method(:method).bind_call(main, command) rescue false
       if Command.execute_as_command?(command, public_method: public_method, private_method: private_method)
         [command, arg]
+      end
+    end
+
+    def colorize_input(input, complete:)
+      if IRB.conf[:USE_COLORIZE] && IRB::Color.colorable?
+        lvars = local_variables || []
+        if parse_command(input)
+          name, sep, arg = input.split(/(\s+)/, 2)
+          arg = IRB::Color.colorize_code(arg, complete: complete, local_variables: lvars)
+          "#{IRB::Color.colorize(name, [:BOLD])}\e[m#{sep}#{arg}"
+        else
+          IRB::Color.colorize_code(input, complete: complete, local_variables: lvars)
+        end
+      else
+        Reline::Unicode.escape_for_print(input)
       end
     end
 

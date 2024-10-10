@@ -1,11 +1,10 @@
 class Array
   # call-seq:
-  #   array.each {|element| ... } -> self
-  #   array.each -> Enumerator
+  #   each {|element| ... } -> self
+  #   each -> new_enumerator
   #
-  # Iterates over array elements.
-  #
-  # When a block given, passes each successive array element to the block;
+  # With a block given, iterates over the elements of +self+,
+  # passing each element to the block;
   # returns +self+:
   #
   #   a = [:foo, 'bar', 2]
@@ -27,20 +26,10 @@ class Array
   #   foo
   #   bar
   #
-  # When no block given, returns a new Enumerator:
-  #   a = [:foo, 'bar', 2]
+  # With no block given, returns a new Enumerator.
   #
-  #   e = a.each
-  #   e # => #<Enumerator: [:foo, "bar", 2]:each>
-  #   a1 = e.each {|element|  puts "#{element.class} #{element}" }
-  #
-  # Output:
-  #
-  #   Symbol foo
-  #   String bar
-  #   Integer 2
-  #
-  # Related: #each_index, #reverse_each.
+  # Related: see {Methods for Iterating}[rdoc-ref:Array@Methods+for+Iterating].
+
   def each
     Primitive.attr! :inline_block
 
@@ -124,12 +113,12 @@ class Array
   end
 
   # call-seq:
-  #   array.first -> object or nil
-  #   array.first(n) -> new_array
+  #   first -> object or nil
+  #   first(count) -> new_array
   #
-  # Returns elements from +self+; does not modify +self+.
+  # Returns elements from +self+, or +nil+; does not modify +self+.
   #
-  # When no argument is given, returns the first element:
+  # With no argument given, returns the first element (if available):
   #
   #   a = [:foo, 'bar', 2]
   #   a.first # => :foo
@@ -137,23 +126,16 @@ class Array
   #
   # If +self+ is empty, returns +nil+.
   #
-  # When non-negative Integer argument +n+ is given,
-  # returns the first +n+ elements in a new +Array+:
+  #   [].first # => nil
   #
-  #   a = [:foo, 'bar', 2]
-  #   a.first(2) # => [:foo, "bar"]
+  # With non-negative integer argument +count+ given,
+  # returns the first +count+ elements (as available) in a new array:
   #
-  # If <tt>n >= array.size</tt>, returns all elements:
-  #
-  #   a = [:foo, 'bar', 2]
+  #   a.first(0)  # => []
+  #   a.first(2)  # => [:foo, "bar"]
   #   a.first(50) # => [:foo, "bar", 2]
   #
-  # If <tt>n == 0</tt> returns an new empty +Array+:
-  #
-  #   a = [:foo, 'bar', 2]
-  #   a.first(0) # []
-  #
-  # Related: #last.
+  # Related: see {Methods for Querying}[rdoc-ref:Array@Methods+for+Querying].
   def first n = unspecified = true
     if Primitive.mandatory_only?
       Primitive.attr! :leaf
@@ -168,36 +150,29 @@ class Array
   end
 
   # call-seq:
-  #   array.last  -> object or nil
-  #   array.last(n) -> new_array
+  #  last  -> last_object or nil
+  #  last(n) -> new_array
   #
-  # Returns elements from +self+; +self+ is not modified.
+  # Returns elements from +self+, or +nil+; +self+ is not modified.
   #
-  # When no argument is given, returns the last element:
+  # With no argument given, returns the last element, or +nil+ if +self+ is empty:
   #
   #   a = [:foo, 'bar', 2]
   #   a.last # => 2
   #   a # => [:foo, "bar", 2]
+  #   [].last # => nil
   #
-  # If +self+ is empty, returns +nil+.
   #
-  # When non-negative Integer argument +n+ is given,
-  # returns the last +n+ elements in a new +Array+:
-  #
-  #   a = [:foo, 'bar', 2]
-  #   a.last(2) # => ["bar", 2]
-  #
-  # If <tt>n >= array.size</tt>, returns all elements:
+  # With non-negative integer argument +n+ is given,
+  # returns a new array containing the trailing +n+ elements of +self+, as available:
   #
   #   a = [:foo, 'bar', 2]
+  #   a.last(2)  # => ["bar", 2]
   #   a.last(50) # => [:foo, "bar", 2]
+  #   a.last(0)  # => []
+  #   [].last(3) # => []
   #
-  # If <tt>n == 0</tt>, returns an new empty +Array+:
-  #
-  #   a = [:foo, 'bar', 2]
-  #   a.last(0) # []
-  #
-  # Related: #first.
+  # Related: see {Methods for Fetching}[rdoc-ref:Array@Methods+for+Fetching].
   def last n = unspecified = true
     if Primitive.mandatory_only?
       Primitive.attr! :leaf
@@ -209,5 +184,42 @@ class Array
         Primitive.cexpr! %q{ ary_take_first_or_last_n(self, NUM2LONG(n), ARY_TAKE_LAST) }
       end
     end
+  end
+
+  #  call-seq:
+  #    fetch_values(*indexes) -> new_array
+  #    fetch_values(*indexes) {|index| ... } -> new_array
+  #
+  #  With no block given, returns a new array containing the elements of +self+
+  #  at the offsets given by +indexes+;
+  #  each of the +indexes+ must be an
+  #  {integer-convertible object}[rdoc-ref:implicit_conversion.rdoc@Integer-Convertible+Objects]:
+  #
+  #    a = [:foo, :bar, :baz]
+  #    a.fetch_values(3, 1)   # => [:baz, :foo]
+  #    a.fetch_values(3.1, 1) # => [:baz, :foo]
+  #    a.fetch_values         # => []
+  #
+  #  For a negative index, counts backwards from the end of the array:
+  #
+  #    a.fetch_values([-2, -1]) # [:bar, :baz]
+  #
+  #  When no block is given, raises an exception if any index is out of range.
+  #
+  #  With a block given, for each index:
+  #
+  #  - If the index in in range, uses an element of +self+ (as above).
+  #  - Otherwise calls, the block with the index, and uses the block's return value.
+  #
+  #  Example:
+  #
+  #    a = [:foo, :bar, :baz]
+  #    a.fetch_values(1, 0, 42, 777) {|index| index.to_s}
+  #    # => [:bar, :foo, "42", "777"]
+  #
+  #  Related: see {Methods for Fetching}[rdoc-ref:Array@Methods+for+Fetching].
+  def fetch_values(*indexes, &block)
+    indexes.map! { |i| fetch(i, &block) }
+    indexes
   end
 end

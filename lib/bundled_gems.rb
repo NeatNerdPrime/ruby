@@ -4,9 +4,6 @@
 
 module Gem::BUNDLED_GEMS
   SINCE = {
-    "rexml" => "3.0.0",
-    "rss" => "3.0.0",
-    "webrick" => "3.0.0",
     "matrix" => "3.1.0",
     "net-ftp" => "3.1.0",
     "net-imap" => "3.1.0",
@@ -32,6 +29,10 @@ module Gem::BUNDLED_GEMS
     "win32ole" => "3.5.0",
     "fiddle" => "3.5.0",
     "logger" => "3.5.0",
+    "benchmark" => "3.5.0",
+    "irb" => "3.5.0",
+    "reline" => "3.5.0",
+    # "readline" => "3.5.0", # This is wrapper for reline. We don't warn for this.
   }.freeze
 
   SINCE_FAST_PATH = SINCE.transform_keys { |g| g.sub(/\A.*\-/, "") }.freeze
@@ -46,6 +47,10 @@ module Gem::BUNDLED_GEMS
     "drb" => true,
     "rinda" => true,
     "syslog" => true,
+  }.freeze
+
+  OPTIONAL = {
+    "fiddle" => true,
   }.freeze
 
   WARNED = {}                   # unfrozen
@@ -65,15 +70,30 @@ module Gem::BUNDLED_GEMS
     [::Kernel.singleton_class, ::Kernel].each do |kernel_class|
       kernel_class.send(:alias_method, :no_warning_require, :require)
       kernel_class.send(:define_method, :require) do |name|
-        if message = ::Gem::BUNDLED_GEMS.warning?(name, specs: spec_names)
+
+        message = ::Gem::BUNDLED_GEMS.warning?(name, specs: spec_names)
+        begin
+          result = kernel_class.send(:no_warning_require, name)
+        rescue LoadError => e
+          result = e
+        end
+
+        # Don't warn if the gem is optional dependency and not found in the Bundler environment.
+        if !(result.is_a?(LoadError) && OPTIONAL[name]) && message
           if ::Gem::BUNDLED_GEMS.uplevel > 0
             Kernel.warn message, uplevel: ::Gem::BUNDLED_GEMS.uplevel
           else
             Kernel.warn message
           end
         end
-        kernel_class.send(:no_warning_require, name)
+
+        if result.is_a?(LoadError)
+          raise result
+        else
+          result
+        end
       end
+
       if kernel_class == ::Kernel
         kernel_class.send(:private, :require)
       else
@@ -128,6 +148,11 @@ module Gem::BUNDLED_GEMS
   def self.warning?(name, specs: nil)
     # name can be a feature name or a file path with String or Pathname
     feature = File.path(name)
+
+    # irb already has reline as a dependency on gemspec, so we don't want to warn about it.
+    # We should update this with a more general solution when we have another case.
+    # ex: Gem.loaded_specs[called_gem].dependencies.any? {|d| d.name == feature }
+    return false if feature.start_with?("reline") && caller_locations(2, 1)[0].to_s.include?("irb")
 
     # The actual checks needed to properly identify the gem being required
     # are costly (see [Bug #20641]), so we first do a much cheaper check

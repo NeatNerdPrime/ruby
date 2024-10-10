@@ -1047,16 +1047,15 @@ rb_float_new_in_heap(double d)
  *  may contain:
  *
  *  - A fixed-point number.
+ *      3.14.to_s         # => "3.14"
  *  - A number in "scientific notation" (containing an exponent).
+ *      (10.1**50).to_s   # => "1.644631821843879e+50"
  *  - 'Infinity'.
+ *      (10.1**500).to_s  # => "Infinity"
  *  - '-Infinity'.
+ *      (-10.1**500).to_s # => "-Infinity"
  *  - 'NaN' (indicating not-a-number).
- *
- *    3.14.to_s         # => "3.14"
- *    (10.1**50).to_s   # => "1.644631821843879e+50"
- *    (10.1**500).to_s  # => "Infinity"
- *    (-10.1**500).to_s # => "-Infinity"
- *    (0.0/0.0).to_s    # => "NaN"
+ *      (0.0/0.0).to_s    # => "NaN"
  *
  */
 
@@ -2744,7 +2743,7 @@ flo_truncate(int argc, VALUE *argv, VALUE num)
  *  Returns the largest float or integer that is less than or equal to +self+,
  *  as specified by the given `ndigits`,
  *  which must be an
- *  [integer-convertible object](rdoc-ref:implicit_conversion.rdoc@Integer-Convertible+Objects).
+ *  {integer-convertible object}[rdoc-ref:implicit_conversion.rdoc@Integer-Convertible+Objects].
  *
  *  Equivalent to <tt>self.to_f.floor(ndigits)</tt>.
  *
@@ -2764,7 +2763,7 @@ num_floor(int argc, VALUE *argv, VALUE num)
  *  Returns the smallest float or integer that is greater than or equal to +self+,
  *  as specified by the given `ndigits`,
  *  which must be an
- *  [integer-convertible object](rdoc-ref:implicit_conversion.rdoc@Integer-Convertible+Objects).
+ *  {integer-convertible object}[rdoc-ref:implicit_conversion.rdoc@Integer-Convertible+Objects].
  *
  *  Equivalent to <tt>self.to_f.ceil(ndigits)</tt>.
  *

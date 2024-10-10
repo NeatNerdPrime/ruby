@@ -283,6 +283,8 @@ typedef struct RNode_CASE {
 
     struct RNode *nd_head;
     struct RNode *nd_body;
+    rb_code_location_t case_keyword_loc;
+    rb_code_location_t end_keyword_loc;
 } rb_node_case_t;
 
 typedef struct RNode_CASE2 {
@@ -290,6 +292,8 @@ typedef struct RNode_CASE2 {
 
     struct RNode *nd_head;
     struct RNode *nd_body;
+    rb_code_location_t case_keyword_loc;
+    rb_code_location_t end_keyword_loc;
 } rb_node_case2_t;
 
 typedef struct RNode_CASE3 {
@@ -297,6 +301,8 @@ typedef struct RNode_CASE3 {
 
     struct RNode *nd_head;
     struct RNode *nd_body;
+    rb_code_location_t case_keyword_loc;
+    rb_code_location_t end_keyword_loc;
 } rb_node_case3_t;
 
 typedef struct RNode_WHEN {
@@ -305,6 +311,8 @@ typedef struct RNode_WHEN {
     struct RNode *nd_head;
     struct RNode *nd_body;
     struct RNode *nd_next;
+    rb_code_location_t keyword_loc;
+    rb_code_location_t then_keyword_loc;
 } rb_node_when_t;
 
 typedef struct RNode_IN {
@@ -321,6 +329,8 @@ typedef struct RNode_LOOP {
     struct RNode *nd_cond;
     struct RNode *nd_body;
     long nd_state;
+    rb_code_location_t keyword_loc;
+    rb_code_location_t closing_loc;
 } rb_node_while_t, rb_node_until_t;
 
 typedef struct RNode_ITER {
@@ -341,6 +351,7 @@ typedef struct RNode_EXITS {
 
     struct RNode *nd_chain;
     struct RNode *nd_stts;
+    rb_code_location_t keyword_loc;
 } rb_node_exits_t, rb_node_break_t, rb_node_next_t, rb_node_redo_t;
 
 typedef struct RNode_RETRY {
@@ -444,6 +455,10 @@ typedef struct RNode_OP_ASGN1 {
     ID nd_mid;
     struct RNode *nd_index;
     struct RNode *nd_rvalue;
+    rb_code_location_t call_operator_loc;
+    rb_code_location_t opening_loc;
+    rb_code_location_t closing_loc;
+    rb_code_location_t binary_operator_loc;
 } rb_node_op_asgn1_t;
 
 typedef struct RNode_OP_ASGN2 {
@@ -454,6 +469,9 @@ typedef struct RNode_OP_ASGN2 {
     ID nd_vid;
     ID nd_mid;
     bool nd_aid;
+    rb_code_location_t call_operator_loc;
+    rb_code_location_t message_loc;
+    rb_code_location_t binary_operator_loc;
 } rb_node_op_asgn2_t;
 
 typedef struct RNode_OP_ASGN_AND {
@@ -562,6 +580,7 @@ typedef struct RNode_RETURN {
     NODE node;
 
     struct RNode *nd_stts;
+    rb_code_location_t keyword_loc;
 } rb_node_return_t;
 
 typedef struct RNode_YIELD {
@@ -791,6 +810,7 @@ typedef struct RNode_SPLAT {
     NODE node;
 
     struct RNode *nd_head;
+    rb_code_location_t operator_loc;
 } rb_node_splat_t;
 
 typedef struct RNode_BLOCK_PASS {
@@ -799,6 +819,7 @@ typedef struct RNode_BLOCK_PASS {
     struct RNode *nd_head;
     struct RNode *nd_body;
     unsigned int forwarding: 1;
+    rb_code_location_t operator_loc;
 } rb_node_block_pass_t;
 
 typedef struct RNode_DEFN {
@@ -1200,21 +1221,16 @@ typedef struct rb_parser_config_struct {
     RBIMPL_ATTR_FORMAT(RBIMPL_PRINTF_FORMAT, 2, 3)
     VALUE (*str_catf)(VALUE str, const char *format, ...);
     VALUE (*str_cat_cstr)(VALUE str, const char *ptr);
-    void (*str_modify)(VALUE str);
-    void (*str_set_len)(VALUE str, long len);
-    VALUE (*str_cat)(VALUE str, const char *ptr, long len);
     VALUE (*str_resize)(VALUE str, long len);
     VALUE (*str_new)(const char *ptr, long len);
     VALUE (*str_new_cstr)(const char *ptr);
     VALUE (*str_to_interned_str)(VALUE);
-    int (*is_ascii_string)(VALUE str);
     VALUE (*enc_str_new)(const char *ptr, long len, rb_encoding *enc);
     RBIMPL_ATTR_FORMAT(RBIMPL_PRINTF_FORMAT, 2, 0)
     VALUE (*str_vcatf)(VALUE str, const char *fmt, va_list ap);
     RBIMPL_ATTR_FORMAT(RBIMPL_PRINTF_FORMAT, 1, 2)
     VALUE (*rb_sprintf)(const char *format, ...);
     char *(*rstring_ptr)(VALUE str);
-    char *(*rstring_end)(VALUE str);
     long (*rstring_len)(VALUE str);
     VALUE (*obj_as_string)(VALUE);
 

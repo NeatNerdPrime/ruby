@@ -3,7 +3,24 @@ require 'test/unit'
 require '-test-/iter'
 
 class TestCall < Test::Unit::TestCase
-  def aaa(a, b=100, *rest)
+  # These dummy method definitions prevent warnings "the block passed to 'a'..."
+  def a(&) = nil
+  def b(&) = nil
+  def c(&) = nil
+  def d(&) = nil
+  def e(&) = nil
+  def f(&) = nil
+  def g(&) = nil
+  def h(&) = nil
+  def i(&) = nil
+  def j(&) = nil
+  def k(&) = nil
+  def l(&) = nil
+  def m(&) = nil
+  def n(&) = nil
+  def o(&) = nil
+
+  def aaa(a, b=100, *rest, &)
     res = [a, b]
     res += rest if rest
     return res
@@ -355,6 +372,21 @@ class TestCall < Test::Unit::TestCase
     o.foo(*a, :x, **b)
 
     assert_equal({splat_modified: false}, b)
+  end
+
+  def test_kwsplat_block_eval_order
+    def self.t(**kw, &b) [kw, b] end
+
+    pr = ->{}
+    h = {a: pr}
+    a = []
+
+    ary = t(**h, &h.delete(:a))
+    assert_equal([{a: pr}, pr], ary)
+
+    h = {a: pr}
+    ary = t(*a, **h, &h.delete(:a))
+    assert_equal([{a: pr}, pr], ary)
   end
 
   def test_kwsplat_block_order

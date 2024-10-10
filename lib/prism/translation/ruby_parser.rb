@@ -1428,7 +1428,13 @@ module Prism
         # "foo"
         # ^^^^^
         def visit_string_node(node)
-          s(node, :str, node.unescaped)
+          unescaped = node.unescaped
+
+          if node.forced_binary_encoding?
+            unescaped.force_encoding(Encoding::BINARY)
+          end
+
+          s(node, :str, unescaped)
         end
 
         # super(foo)
@@ -1590,13 +1596,13 @@ module Prism
       # Parse the given source and translate it into the seattlerb/ruby_parser
       # gem's Sexp format.
       def parse(source, filepath = "(string)")
-        translate(Prism.parse(source, filepath: filepath, scopes: [[]]), filepath)
+        translate(Prism.parse(source, filepath: filepath, partial_script: true), filepath)
       end
 
       # Parse the given file and translate it into the seattlerb/ruby_parser
       # gem's Sexp format.
       def parse_file(filepath)
-        translate(Prism.parse_file(filepath, scopes: [[]]), filepath)
+        translate(Prism.parse_file(filepath, partial_script: true), filepath)
       end
 
       class << self

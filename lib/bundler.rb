@@ -384,28 +384,12 @@ module Bundler
 
     # @return [Hash] Environment with all bundler-related variables removed
     def unbundled_env
-      env = original_env
+      unbundle_env(original_env)
+    end
 
-      if env.key?("BUNDLER_ORIG_MANPATH")
-        env["MANPATH"] = env["BUNDLER_ORIG_MANPATH"]
-      end
-
-      env.delete_if {|k, _| k[0, 7] == "BUNDLE_" }
-
-      if env.key?("RUBYOPT")
-        rubyopt = env["RUBYOPT"].split(" ")
-        rubyopt.delete("-r#{File.expand_path("bundler/setup", __dir__)}")
-        rubyopt.delete("-rbundler/setup")
-        env["RUBYOPT"] = rubyopt.join(" ")
-      end
-
-      if env.key?("RUBYLIB")
-        rubylib = env["RUBYLIB"].split(File::PATH_SEPARATOR)
-        rubylib.delete(__dir__)
-        env["RUBYLIB"] = rubylib.join(File::PATH_SEPARATOR)
-      end
-
-      env
+    # Remove all bundler-related variables from ENV
+    def unbundle_env!
+      ENV.replace(unbundle_env(ENV))
     end
 
     # Run block with environment present before Bundler was activated
@@ -593,7 +577,7 @@ module Bundler
 
       requested_path_gems = definition.requested_specs.select {|s| s.source.is_a?(Source::Path) }
       path_plugin_files = requested_path_gems.map do |spec|
-        Bundler.rubygems.spec_matches_for_glob(spec, "rubygems_plugin#{Bundler.rubygems.suffix_pattern}")
+        spec.matches_for_glob("rubygems_plugin#{Bundler.rubygems.suffix_pattern}")
       rescue TypeError
         error_message = "#{spec.name} #{spec.version} has an invalid gemspec"
         raise Gem::InvalidSpecificationException, error_message
@@ -651,6 +635,30 @@ module Bundler
 
     private
 
+    def unbundle_env(env)
+      if env.key?("BUNDLER_ORIG_MANPATH")
+        env["MANPATH"] = env["BUNDLER_ORIG_MANPATH"]
+      end
+
+      env.delete_if {|k, _| k[0, 7] == "BUNDLE_" }
+      env.delete("BUNDLER_SETUP")
+
+      if env.key?("RUBYOPT")
+        rubyopt = env["RUBYOPT"].split(" ")
+        rubyopt.delete("-r#{File.expand_path("bundler/setup", __dir__)}")
+        rubyopt.delete("-rbundler/setup")
+        env["RUBYOPT"] = rubyopt.join(" ")
+      end
+
+      if env.key?("RUBYLIB")
+        rubylib = env["RUBYLIB"].split(File::PATH_SEPARATOR)
+        rubylib.delete(__dir__)
+        env["RUBYLIB"] = rubylib.join(File::PATH_SEPARATOR)
+      end
+
+      env
+    end
+
     def load_marshal(data, marshal_proc: nil)
       Marshal.load(data, marshal_proc)
     rescue TypeError => e
@@ -670,7 +678,7 @@ module Bundler
     rescue ScriptError, StandardError => e
       msg = "There was an error while loading `#{path.basename}`: #{e.message}"
 
-      raise GemspecError, Dsl::DSLError.new(msg, path, e.backtrace, contents)
+      raise GemspecError, Dsl::DSLError.new(msg, path.to_s, e.backtrace, contents)
     end
 
     def configure_gem_path

@@ -52,6 +52,9 @@ module Prism
       assert_kind_of CallNode, predicate
       assert_equal :gets, predicate.name
 
+      arguments = predicate.arguments
+      assert arguments.contains_keywords?
+
       arguments = predicate.arguments.arguments
       assert_equal 2, arguments.length
       assert_equal :$/, arguments.first.name
@@ -67,7 +70,7 @@ module Prism
     end
 
     def test_command_line_x_implicit
-      result = Prism.parse_statement(<<~RUBY)
+      result = Prism.parse_statement(<<~RUBY, main_script: true)
         #!/bin/bash
         exit 1
 
@@ -90,7 +93,7 @@ module Prism
     end
 
     def test_command_line_x_implicit_fail
-      result = Prism.parse(<<~RUBY)
+      result = Prism.parse(<<~RUBY, main_script: true)
         #!/bin/bash
         exit 1
       RUBY

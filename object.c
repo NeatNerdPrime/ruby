@@ -135,7 +135,7 @@ rb_class_allocate_instance(VALUE klass)
     RUBY_ASSERT(rb_shape_get_shape(obj)->type == SHAPE_ROOT);
 
     // Set the shape to the specific T_OBJECT shape.
-    ROBJECT_SET_SHAPE_ID(obj, (shape_id_t)(rb_gc_size_pool_id_for_size(size) + FIRST_T_OBJECT_SHAPE_ID));
+    ROBJECT_SET_SHAPE_ID(obj, (shape_id_t)(rb_gc_heap_id_for_size(size) + FIRST_T_OBJECT_SHAPE_ID));
 
 #if RUBY_DEBUG
     RUBY_ASSERT(!rb_shape_obj_too_complex(obj));
@@ -358,7 +358,7 @@ rb_obj_copy_ivar(VALUE dest, VALUE obj)
 
     rb_shape_t * initial_shape = rb_shape_get_shape(dest);
 
-    if (initial_shape->size_pool_index != src_shape->size_pool_index) {
+    if (initial_shape->heap_index != src_shape->heap_index) {
         RUBY_ASSERT(initial_shape->type == SHAPE_T_OBJECT);
 
         shape_to_set_on_dest = rb_shape_rebuild_shape(initial_shape, src_shape);
@@ -3400,7 +3400,7 @@ rb_f_integer(rb_execution_context_t *ec, VALUE obj, VALUE arg, VALUE base, VALUE
 }
 
 static double
-rb_cstr_to_dbl_raise(const char *p, int badcheck, int raise, int *error)
+rb_cstr_to_dbl_raise(const char *p, rb_encoding *enc, int badcheck, int raise, int *error)
 {
     const char *q;
     char *end;
@@ -3411,6 +3411,7 @@ rb_cstr_to_dbl_raise(const char *p, int badcheck, int raise, int *error)
 #define OutOfRange() ((end - p > max_width) ? \
                       (w = max_width, ellipsis = "...") : \
                       (w = (int)(end - p), ellipsis = ""))
+    /* p...end has been parsed with strtod, should be ASCII-only */
 
     if (!p) return 0.0;
     q = p;
@@ -3506,7 +3507,8 @@ rb_cstr_to_dbl_raise(const char *p, int badcheck, int raise, int *error)
 
   bad:
     if (raise) {
-        rb_invalid_str(q, "Float()");
+        VALUE s = rb_enc_str_new_cstr(q, enc);
+        rb_raise(rb_eArgError, "invalid value for Float(): %+"PRIsVALUE, s);
         UNREACHABLE_RETURN(nan(""));
     }
     else {
@@ -3518,7 +3520,7 @@ rb_cstr_to_dbl_raise(const char *p, int badcheck, int raise, int *error)
 double
 rb_cstr_to_dbl(const char *p, int badcheck)
 {
-    return rb_cstr_to_dbl_raise(p, badcheck, TRUE, NULL);
+    return rb_cstr_to_dbl_raise(p, NULL, badcheck, TRUE, NULL);
 }
 
 static double
@@ -3530,6 +3532,7 @@ rb_str_to_dbl_raise(VALUE str, int badcheck, int raise, int *error)
     VALUE v = 0;
 
     StringValue(str);
+    rb_must_asciicompat(str);
     s = RSTRING_PTR(str);
     len = RSTRING_LEN(str);
     if (s) {
@@ -3548,9 +3551,11 @@ rb_str_to_dbl_raise(VALUE str, int badcheck, int raise, int *error)
             s = p;
         }
     }
-    ret = rb_cstr_to_dbl_raise(s, badcheck, raise, error);
+    ret = rb_cstr_to_dbl_raise(s, rb_enc_get(str), badcheck, raise, error);
     if (v)
         ALLOCV_END(v);
+    else
+        RB_GC_GUARD(str);
     return ret;
 }
 

@@ -54,10 +54,11 @@
 # include "internal/warnings.h"
 # undef NO_SANITIZE
 # define NO_SANITIZE(x, y) \
-    COMPILER_WARNING_PUSH; \
-    COMPILER_WARNING_IGNORED(-Wattributes); \
+    COMPILER_WARNING_PUSH \
+    COMPILER_WARNING_IGNORED(-Wattributes) \
     __attribute__((__no_sanitize__(x))) y; \
-    COMPILER_WARNING_POP
+    COMPILER_WARNING_POP \
+    y
 #endif
 
 #ifndef NO_SANITIZE
@@ -206,6 +207,35 @@ asan_poison_object_restore(VALUE obj, void *ptr)
     return NULL;
 }
 
+#define asan_unpoisoning_object(obj) \
+    for (void *poisoned = asan_unpoison_object_temporary(obj), \
+              *unpoisoning = &poisoned; /* flag to loop just once */ \
+         unpoisoning; \
+         unpoisoning = asan_poison_object_restore(obj, poisoned))
+
+
+static inline void *
+asan_unpoison_memory_region_temporary(void *ptr, size_t len)
+{
+    void *poisoned_ptr = __asan_region_is_poisoned(ptr, len);
+    asan_unpoison_memory_region(ptr, len, false);
+    return poisoned_ptr;
+}
+
+static inline void *
+asan_poison_memory_region_restore(void *ptr, size_t len, void *poisoned_ptr)
+{
+    if (poisoned_ptr) {
+        asan_poison_memory_region(ptr, len);
+    }
+    return NULL;
+}
+
+#define asan_unpoisoning_memory_region(ptr, len) \
+    for (void *poisoned = asan_unpoison_memory_region_temporary(ptr, len), \
+              *unpoisoning = &poisoned; /* flag to loop just once */ \
+         unpoisoning; \
+         unpoisoning = asan_poison_memory_region_restore(ptr, len, poisoned))
 
 /**
  * Checks if the given pointer is on an ASAN fake stack. If so, it returns the

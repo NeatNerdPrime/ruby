@@ -22,6 +22,15 @@ module Prism
       assert_warning("a /b/", "wrap regexp in parentheses")
     end
 
+    def test_ambiguous_ampersand
+      assert_warning("a &b", "argument prefix")
+      assert_warning("a &:+", "argument prefix")
+
+      refute_warning("a &:b")
+      refute_warning("a &:'b'")
+      refute_warning("a &:\"b\"")
+    end
+
     def test_binary_operator
       [
         [:**, "argument prefix"],
@@ -115,6 +124,9 @@ module Prism
       assert_warning("case 1; when 2\n  end", "mismatched indentations at 'end' with 'case'")
       assert_warning("case 1; in 2\n  end", "mismatched indentations at 'end' with 'case'")
 
+      assert_warning("  case 1\nwhen 2\n  end", "mismatched indentations at 'when' with 'case'")
+      refute_warning("case 1\n  when 2\n    when 3\nend") # case/when allows more indentation
+
       assert_warning("-> {\n  }", "mismatched indentations at '}' with '->'")
       assert_warning("-> do\n  end", "mismatched indentations at 'end' with '->'")
       assert_warning("-> do\n  rescue\nend", "mismatched indentations at 'rescue' with '->'")
@@ -172,6 +184,10 @@ module Prism
     def test_keyword_eol
       assert_warning("if\ntrue; end", "end of line")
       assert_warning("if true\nelsif\nfalse; end", "end of line")
+    end
+
+    def test_numbered_reference
+      assert_warning("_ = _ = $999999999999999999999", "too big for a number variable, always nil")
     end
 
     def test_shareable_constant_value
@@ -243,6 +259,8 @@ module Prism
 
       refute_warning("def foo; bar = 1; tap { bar }; end")
       refute_warning("def foo; bar = 1; tap { baz = bar; baz }; end")
+
+      refute_warning("def foo; bar = 1; end", line: -2, compare: false)
     end
 
     def test_void_statements
@@ -321,42 +339,49 @@ module Prism
       assert_warning("tap { redo; foo }", "statement not reached")
     end
 
-    def test_shebang_ending_with_carriage_return
-      msg = "shebang line ending with \\r may cause problems"
+    if RbConfig::CONFIG["host_os"].match?(/bccwin|cygwin|djgpp|mingw|mswin|wince/i)
+      def test_shebang_ending_with_carriage_return
+        refute_warning("#!ruby\r\np(123)\n", compare: false)
+      end
+    else
+      def test_shebang_ending_with_carriage_return
+        msg = "shebang line ending with \\r may cause problems"
 
-      assert_warning(<<~RUBY, msg, compare: false)
-        #!ruby\r
-        p(123)
-      RUBY
+        assert_warning(<<~RUBY, msg, compare: false, main_script: true)
+          #!ruby\r
+          p(123)
+        RUBY
 
-      assert_warning(<<~RUBY, msg, compare: false)
-        #!ruby \r
-        p(123)
-      RUBY
+        assert_warning(<<~RUBY, msg, compare: false, main_script: true)
+          #!ruby \r
+          p(123)
+        RUBY
 
-      assert_warning(<<~RUBY, msg, compare: false)
-        #!ruby -Eutf-8\r
-        p(123)
-      RUBY
+        assert_warning(<<~RUBY, msg, compare: false, main_script: true)
+          #!ruby -Eutf-8\r
+          p(123)
+        RUBY
 
-      # Used with the `-x` object, to ignore the script up until the first shebang that mentioned "ruby".
-      assert_warning(<<~SCRIPT, msg, compare: false)
-        #!/usr/bin/env bash
-        # Some initial shell script or other content
-        # that Ruby should ignore
-        echo "This is shell script part"
-        exit 0
+        # Used with the `-x` object, to ignore the script up until the first
+        # shebang that mentioned "ruby".
+        assert_warning(<<~SCRIPT, msg, compare: false, main_script: true)
+          #!/usr/bin/env bash
+          # Some initial shell script or other content
+          # that Ruby should ignore
+          echo "This is shell script part"
+          exit 0
 
-        #! /usr/bin/env ruby -Eutf-8\r
-        # Ruby script starts here
-        puts "Hello from Ruby!"
-      SCRIPT
+          #! /usr/bin/env ruby -Eutf-8\r
+          # Ruby script starts here
+          puts "Hello from Ruby!"
+        SCRIPT
 
-      refute_warning("#ruby not_a_shebang\r\n", compare: false)
+        refute_warning("#ruby not_a_shebang\r\n", compare: false, main_script: true)
 
-      # CRuby doesn't emit the warning if a malformed file only has `\r` and not `\n`.
-      # https://bugs.ruby-lang.org/issues/20700
-      refute_warning("#!ruby\r", compare: false)
+        # CRuby doesn't emit the warning if a malformed file only has `\r` and
+        # not `\n`. https://bugs.ruby-lang.org/issues/20700.
+        refute_warning("#!ruby\r", compare: false, main_script: true)
+      end
     end
 
     def test_warnings_verbosity
@@ -371,8 +396,8 @@ module Prism
 
     private
 
-    def assert_warning(source, *messages, compare: true)
-      warnings = Prism.parse(source).warnings
+    def assert_warning(source, *messages, compare: true, **options)
+      warnings = Prism.parse(source, **options).warnings
       assert_equal messages.length, warnings.length, "Expected #{messages.length} warning(s) in #{source.inspect}, got #{warnings.map(&:message).inspect}"
 
       warnings.zip(messages).each do |warning, message|

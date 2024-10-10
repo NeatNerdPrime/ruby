@@ -26,7 +26,7 @@ require 'date'
 
 class Time
 
-  VERSION = "0.3.0"
+  VERSION = "0.4.0"             # :nodoc:
 
   class << Time
 
@@ -280,7 +280,7 @@ class Time
     #
     # This method **does not** function as a validator.  If the input
     # string does not match valid formats strictly, you may get a
-    # cryptic result.  Should consider to use `Time.strptime` instead
+    # cryptic result.  Should consider to use Time.strptime instead
     # of this method as possible.
     #
     #     require 'time'
@@ -391,7 +391,7 @@ class Time
     # heuristic to detect the format of the input string, you provide
     # a second argument that describes the format of the string.
     #
-    # Raises `ArgumentError` if the date or format is invalid.
+    # Raises ArgumentError if the date or format is invalid.
     #
     # If a block is given, the year described in +date+ is converted by the
     # block.  For example:
@@ -444,8 +444,8 @@ class Time
     # %X :: Preferred representation for the time alone, no date
     # %y :: Year without a century (00..99)
     # %Y :: Year which may include century, if provided
-    # %z :: Time zone as  hour offset from UTC (e.g. +0900)
-    # %Z :: Time zone name
+    # %z :: \Time zone as hour offset from UTC (e.g. +0900)
+    # %Z :: \Time zone name
     # %% :: Literal "%" character
     # %+ :: date(1) (%a %b %e %H:%M:%S %Z %Y)
     #
@@ -695,35 +695,36 @@ class Time
     getutc.strftime('%a, %d %b %Y %T GMT')
   end
 
-  #
-  # Returns a string which represents the time as a dateTime defined by XML
-  # Schema:
-  #
-  #   CCYY-MM-DDThh:mm:ssTZD
-  #   CCYY-MM-DDThh:mm:ss.sssTZD
-  #
-  # where TZD is Z or [+-]hh:mm.
-  #
-  # If self is a UTC time, Z is used as TZD.  [+-]hh:mm is used otherwise.
-  #
-  # +fraction_digits+ specifies a number of digits to use for fractional
-  # seconds.  Its default value is 0.
-  #
-  #     require 'time'
-  #
-  #     t = Time.now
-  #     t.iso8601  # => "2011-10-05T22:26:12-04:00"
-  #
-  # You must require 'time' to use this method.
-  #
-  def xmlschema(fraction_digits=0)
-    fraction_digits = fraction_digits.to_i
-    s = strftime("%FT%T")
-    if fraction_digits > 0
-      s << strftime(".%#{fraction_digits}N")
+  unless method_defined?(:xmlschema)
+    #
+    # Returns a string which represents the time as a dateTime defined by XML
+    # Schema:
+    #
+    #   CCYY-MM-DDThh:mm:ssTZD
+    #   CCYY-MM-DDThh:mm:ss.sssTZD
+    #
+    # where TZD is Z or [+-]hh:mm.
+    #
+    # If self is a UTC time, Z is used as TZD.  [+-]hh:mm is used otherwise.
+    #
+    # +fraction_digits+ specifies a number of digits to use for fractional
+    # seconds.  Its default value is 0.
+    #
+    #     require 'time'
+    #
+    #     t = Time.now
+    #     t.iso8601  # => "2011-10-05T22:26:12-04:00"
+    #
+    # You must require 'time' to use this method.
+    #
+    def xmlschema(fraction_digits=0)
+      fraction_digits = fraction_digits.to_i
+      s = strftime("%FT%T")
+      if fraction_digits > 0
+        s << strftime(".%#{fraction_digits}N")
+      end
+      s << (utc? ? 'Z' : strftime("%:z"))
     end
-    s << (utc? ? 'Z' : strftime("%:z"))
   end
-  alias iso8601 xmlschema
+  alias iso8601 xmlschema unless method_defined?(:iso8601)
 end
-

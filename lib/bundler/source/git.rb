@@ -188,10 +188,10 @@ module Bundler
       end
 
       def specs(*)
-        set_cache_path!(app_cache_path) if use_app_cache?
+        set_up_app_cache!(app_cache_path) if use_app_cache?
 
         if requires_checkout? && !@copied
-          FileUtils.rm_rf(app_cache_path) if use_app_cache? && git_proxy.not_a_bare_repository?
+          FileUtils.rm_rf(app_cache_path) if use_app_cache? && git_proxy.not_a_repository?
 
           fetch
           checkout
@@ -210,7 +210,7 @@ module Bundler
           checkout
         end
 
-        generate_bin_options = { disable_extensions: !Bundler.rubygems.spec_missing_extensions?(spec), build_args: options[:build_args] }
+        generate_bin_options = { disable_extensions: !spec.missing_extensions?, build_args: options[:build_args] }
         generate_bin(spec, generate_bin_options)
 
         requires_checkout? ? spec.post_install_message : nil
@@ -226,6 +226,7 @@ module Bundler
         git_proxy.checkout if requires_checkout?
         FileUtils.cp_r("#{cache_path}/.", app_cache_path)
         FileUtils.touch(app_cache_path.join(".bundlecache"))
+        FileUtils.rm_rf(Dir.glob(app_cache_path.join("hooks/*.sample")))
       end
 
       def load_spec_files
@@ -298,7 +299,7 @@ module Bundler
           # The gemspecs we cache should already be evaluated.
           spec = Bundler.load_gemspec(spec_path)
           next unless spec
-          Bundler.rubygems.set_installed_by_version(spec)
+          spec.installed_by_version = Gem::VERSION
           Bundler.rubygems.validate(spec)
           File.open(spec_path, "wb") {|file| file.write(spec.to_ruby) }
         end
@@ -317,6 +318,11 @@ module Bundler
       def set_install_path!(path)
         @local_specs = nil
         @install_path = path
+      end
+
+      def set_up_app_cache!(path)
+        FileUtils.mkdir_p(path.join("refs"))
+        set_cache_path!(path)
       end
 
       def has_app_cache?

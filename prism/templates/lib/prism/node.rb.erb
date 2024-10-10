@@ -225,7 +225,7 @@ module Prism
       @flags = flags
       <%- node.fields.each do |field| -%>
       <%- if Prism::Template::CHECK_FIELD_KIND && field.respond_to?(:check_field_kind) -%>
-      raise <%= field.name %>.inspect unless <%= field.check_field_kind %>
+      raise "<%= node.name %>#<%= field.name %> was of unexpected type:\n#{<%= field.name %>.inspect}" unless <%= field.check_field_kind %>
       <%- end -%>
       @<%= field.name %> = <%= field.name %>
       <%- end -%>
@@ -389,13 +389,13 @@ module Prism
     end
   end
   <%- end -%>
-  <%- flags.each_with_index do |flag, flag_index| -%>
+  <%- flags.each do |flag| -%>
 
   # <%= flag.comment %>
   module <%= flag.name %>
     <%- flag.values.each_with_index do |value, index| -%>
     # <%= value.comment %>
-    <%= value.name %> = 1 << <%= (index + 2) %>
+    <%= value.name %> = 1 << <%= index + Prism::Template::COMMON_FLAGS_COUNT %>
 <%= "\n" if value != flag.values.last -%>
     <%- end -%>
   end

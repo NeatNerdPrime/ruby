@@ -266,11 +266,7 @@ module Bundler
       groups.map!(&:to_sym)
       deps = current_dependencies # always returns a new array
       deps.select! do |d|
-        if RUBY_VERSION >= "3.1"
-          d.groups.intersect?(groups)
-        else
-          !(d.groups & groups).empty?
-        end
+        d.groups.intersect?(groups)
       end
       deps
     end
@@ -317,7 +313,7 @@ module Bundler
 
     def lock(file_or_preserve_unknown_sections = false, preserve_unknown_sections_or_unused = false)
       if [true, false, nil].include?(file_or_preserve_unknown_sections)
-        target_lockfile = lockfile || Bundler.default_lockfile
+        target_lockfile = lockfile
         preserve_unknown_sections = file_or_preserve_unknown_sections
       else
         target_lockfile = file_or_preserve_unknown_sections
@@ -511,15 +507,11 @@ module Bundler
     end
 
     def lockfile_exists?
-      file_exists?(lockfile)
-    end
-
-    def file_exists?(file)
-      file && File.exist?(file)
+      lockfile && File.exist?(lockfile)
     end
 
     def write_lock(file, preserve_unknown_sections)
-      return if Definition.no_lock
+      return if Definition.no_lock || file.nil?
 
       contents = to_lock
 
@@ -536,7 +528,7 @@ module Bundler
 
       preserve_unknown_sections ||= !updating_major && (Bundler.frozen_bundle? || !(unlocking? || @unlocking_bundler))
 
-      if file_exists?(file) && lockfiles_equal?(@lockfile_contents, contents, preserve_unknown_sections)
+      if File.exist?(file) && lockfiles_equal?(@lockfile_contents, contents, preserve_unknown_sections)
         return if Bundler.frozen_bundle?
         SharedHelpers.filesystem_access(file) { FileUtils.touch(file) }
         return
@@ -562,7 +554,7 @@ module Bundler
 
     def dependencies_with_bundler
       return dependencies unless @unlocking_bundler
-      return dependencies if dependencies.map(&:name).include?("bundler")
+      return dependencies if dependencies.any? {|d| d.name == "bundler" }
 
       [Dependency.new("bundler", @unlocking_bundler)] + dependencies
     end

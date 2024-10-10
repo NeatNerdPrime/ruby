@@ -27,6 +27,7 @@ RSpec.describe "bundle cache with git" do
     expect(bundled_app("vendor/cache/foo-1.0-#{ref}")).to exist
     expect(bundled_app("vendor/cache/foo-1.0-#{ref}/.git")).not_to exist
     expect(bundled_app("vendor/cache/foo-1.0-#{ref}/.bundlecache")).to be_file
+    expect(Dir.glob(bundled_app("vendor/cache/foo-1.0-#{ref}/hooks/*.sample"))).to be_empty
 
     FileUtils.rm_rf lib_path("foo-1.0")
     expect(the_bundle).to include_gems "foo 1.0"
@@ -211,6 +212,34 @@ RSpec.describe "bundle cache with git" do
     expect(the_bundle).to include_gem "foo 1.0"
   end
 
+  it "can install after bundle cache without cloning remote repositories with only git tracked files" do
+    build_git "foo"
+
+    gemfile <<-G
+      source "https://gem.repo1"
+      gem "foo", :git => '#{lib_path("foo-1.0")}'
+    G
+    bundle "config set cache_all true"
+    bundle :cache, "all-platforms" => true
+    FileUtils.rm_rf Dir.glob(default_bundle_path("bundler/gems/extensions/**/foo-1.0-*")).first.to_s
+    FileUtils.rm_rf Dir.glob(default_bundle_path("bundler/gems/foo-1.0-*")).first.to_s
+
+    simulate_new_machine
+    bundle "config set frozen true"
+    FileUtils.rm_rf "#{default_bundle_path}/cache/bundler/git/foo-1.0-*"
+
+    # Remove untracked files (including the empty refs dir in the cache)
+    Dir.chdir(bundled_app) do
+      system(*%W[git init --quiet])
+      system(*%W[git add --all])
+      system(*%W[git clean -d --force --quiet])
+    end
+
+    bundle "install --local --verbose"
+    expect(out).to_not include("Fetching")
+    expect(the_bundle).to include_gem "foo 1.0"
+  end
+
   it "copies repository to vendor cache" do
     # CVE-2022-39253: https://lore.kernel.org/lkml/xmqq4jw1uku5.fsf@gitster.g/
     system(*%W[git config --global protocol.file.allow always])
@@ -294,8 +323,6 @@ RSpec.describe "bundle cache with git" do
     FileUtils.mkdir_p bundled_app("vendor/cache")
     FileUtils.cp_r git_path, bundled_app("vendor/cache/foo-1.0-#{path_revision}")
     FileUtils.rm_rf bundled_app("vendor/cache/foo-1.0-#{path_revision}/.git")
-    # bundle install with git repo needs to be run under the git environment.
-    Dir.chdir(bundled_app) { system(*%W[git init --quiet]) }
 
     bundle :install, env: { "BUNDLE_DEPLOYMENT" => "true", "BUNDLE_CACHE_ALL" => "true" }
   end
