@@ -365,6 +365,8 @@ describe "C-API Class function" do
                                         "ClassUnder6",
                                         Class.new)
       }.should raise_error(TypeError)
+    ensure
+      CApiClassSpecs.send(:remove_const, :ClassUnder6)
     end
 
     it "defines a class for an existing Autoload" do
@@ -389,8 +391,8 @@ describe "C-API Class function" do
         ScratchPad.record([])
         @s.rb_define_class_id_under(CApiClassSpecs::Callbacks, :Subclass, CApiClassSpecs::Callbacks)
         ScratchPad.recorded.should == [
-          [:inherited, "CApiClassSpecs::Callbacks::Subclass"],
-          [:const_added, :Subclass],
+          [:inherited, "CApiClassSpecs::Callbacks::Subclass", :location],
+          [:const_added, :Subclass, :location],
         ]
       end
     end
